@@ -4,3 +4,5 @@ Simple peer-to-peer chat example using PeerJS
 Live demo:
 
 https://raw.githack.com/jay23606/p2p-chat/main/index.html
+
+Added support for re-broadcasting to multiple clients for a "server" (the peer that hasn't connected to anyone)
