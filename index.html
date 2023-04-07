@@ -20,31 +20,28 @@
     <input id="peer-id" placeholder="self-ID of peer" />
     <button id="connect-btn">Connect</button>
     <span style="float:right">Nick:<input id="nick" /></span>
-    <div id="stat"></div>
+    <div id="stat">&nbsp;</div>
     <fieldset style="border:1px solid black">
         <legend>Messages</legend>
         <div id="message"></div>
     </fieldset>
-    <input type="text" id="send-input" placeholder="Enter message and press enter" style="width:100%" />
+    <input type="text" id="send-input" placeholder="Enter message and press enter" style="width:98.5%" />
     <script src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
     <script type="text/javascript">
         $ = id => document.getElementById(id)
-        let lastPeerId = null, conn = null;
+        let lastPeerId = null, conn = [], isServer = true;
         const peerId = $("peer-id"), selfId = $("self-id"), stat = $("stat"), message = $("message"), sendInput = $("send-input"),
             connectBtn = $("connect-btn"), nick = $("nick"), copyBtn = $("copy-btn");
 
-        const ready = () => {
-            conn.on('data', (data) => addMessage(data));
-            conn.on('close', () => stat.innerHTML = "Connection reset<br>Awaiting connection...");
-        }
         const addMessage = (msg) => message.innerHTML = message.innerHTML + "<br>" + msg
 
         sendInput.addEventListener('keypress', e => (e.which === 13) ? connSend(sendInput) : '');
 
         const connSend = (input) => {
-            if (conn && conn.open) {
-                let msg = `${nick.value||'Anonymous'}: ` + input.value;
-                conn.send(msg); addMessage(msg); input.value = '';
+            if (conn.length) {
+                let msg = `${nick.value || 'Anonymous'}: ` + input.value;
+                conn.forEach(c => c.send(msg));
+                addMessage(msg); input.value = '';
             }
         }
 
@@ -57,9 +54,16 @@
         });
 
         peer.on('connection', c => {
-            conn = c;
-            stat.textContent = "Connected";
-            ready();
+            console.log('p.conn: '+c.peer);
+            conn.push(c);
+            stat.textContent = `Connected ${conn.length} client`;
+            c.on('open', () => stat.textContent = "Connected to: " + c.peer);
+            c.on('data', (data) => {
+                addMessage(data)
+                //if we are the server then we need to broadcast the data to other nodes as well
+                if (isServer && conn.length > 1) conn.forEach(x => (x.peer !== c.peer) ? x.send(data) : '');
+            });
+            c.on('close', () => stat.innerHTML = `close event from ${c.peer}`);
         });
 
         peer.on('disconnected', () => {
@@ -74,11 +78,12 @@
         peer.on('error', (err) => stat.textContent = `Error: ${err} `);
 
         connectBtn.addEventListener('click', (e) => {
-            if (conn) conn.close();
-            conn = peer.connect(peerId.value, { reliable: true });
-            conn.on('open', () => stat.textContent = "Connected to: " + conn.peer);
-            conn.on('data', (data) => addMessage(data));
-            conn.on('close', () => stat.textContent = "Connection closed");
+            isServer = false; //if they connect to a peer we assume they are not the server
+            if (conn.length) conn.foreach(c => c.close()); conn = [];
+            conn.push(peer.connect(peerId.value, { reliable: true }));
+            conn[0].on('open', () => stat.textContent = "Connected to: " + conn[0].peer);
+            conn[0].on('data', (data) => addMessage(data));
+            conn[0].on('close', () => stat.textContent = "Connection closed");
         });
 
         const copyText = (el) => {
@@ -91,6 +96,9 @@
         }
 
         copyBtn.addEventListener('click', () => copyText(selfId))
+        let resizeChat = () => message.style.height = `${window.innerHeight - stat.getBoundingClientRect().bottom - 75}px`
+        window.onresize = () => resizeChat();
+        window.onload = () => resizeChat();
     </script>
 </body>
 </html>
