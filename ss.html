@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GPT Screen Sharing App</title>
+    <title>Screen Sharing App</title>
   </head>
   <body>
-    <h1>Screen Sharing App</h1>
+    <h1>screen sharing app</h1>
     <p>Share this URL with your peer:</p>
     <input type="text" id="peerUrl" readonly />
 
@@ -52,6 +52,11 @@
         if (peerId) {
           setTimeout(() => {
             peerConnection = peer.call(peerId, localScreen);
+
+            if (!peerConnection) {
+              console.log('Failed to establish connection with peer ID:', peerId);
+              return;
+            }
 
             peerConnection.on("stream", (stream) => {
               document.getElementById("remoteVideo").srcObject = stream;
