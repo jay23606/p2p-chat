@@ -1,0 +1,25 @@
+{
+    "name": "p2p-chat",
+    "short_name": "p2p-chat",
+    "description": "Chat with friends using a P2P network",
+    "icons": [
+        {
+            "src": "icon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icon2.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "theme_color": "#ffffff",
+    "background_color": "#000000",
+    "display": "standalone",
+    "orientation": "portrait",
+    "start_url": "/index.html?min=1",
+    "scope": "/jay23606/p2p-chat/main/",
+    "shape": "circle",
+    "version": "1.0.0"
+}
