@@ -50,28 +50,42 @@
         const peerId = urlParams.get('peer');
 
         if (peerId) {
-          peerConnection = peer.call(peerId, localScreen);
+          setTimeout(() => {
+            peerConnection = peer.call(peerId, localScreen);
 
-          peerConnection.on("stream", (stream) => {
-            document.getElementById("remoteVideo").srcObject = stream;
-          });
+            peerConnection.on("stream", (stream) => {
+              document.getElementById("remoteVideo").srcObject = stream;
+            });
 
-          // Share local screen with peer
-          const mediaConnection = peer.connect(peerId);
-          mediaConnection.on("open", () => {
-            mediaConnection.send(localScreen);
-          });
+            // Share local screen with peer
+            const mediaConnection = peer.connect(peerId);
+            mediaConnection.on("open", () => {
+              mediaConnection.send(localScreen);
+            });
+          }, 2000);
         }
       });
 
       document.getElementById("toggleStream").addEventListener("click", () => {
         if (peerConnection) {
-          if (peerConnection.peerConnection.getSenders()[0].track === localScreen.getTracks()[0]) {
-            peerConnection.peerConnection.getSenders()[0].replaceTrack(localCamera.getTracks()[1]);
-            document.getElementById("localVideo").srcObject = localCamera;
-          } else {
-            peerConnection.peerConnection.getSenders()[0].replaceTrack(localScreen.getTracks()[0]);
-            document.getElementById("localVideo").srcObject = localScreen;
+          if (peerConnection.peerConnection && peerConnection.peerConnection.getSenders()[0]) {
+            if (peerConnection.peerConnection.getSenders()[0].track === localScreen.getTracks()[0]) {
+              peerConnection.peerConnection.getSenders()[0].replaceTrack(localCamera.getTracks()[1])
+                .then(() => {
+                  document.getElementById("localVideo").srcObject = localCamera;
+                })
+                .catch((error) => {
+                  console.log(error);
+                });
+            } else {
+              peerConnection.peerConnection.getSenders()[0].replaceTrack(localScreen.getTracks()[0])
+                .then(() => {
+                  document.getElementById("localVideo").srcObject = localScreen;
+                })
+                .catch((error) => {
+                  console.log(error);
+                });
+            }
           }
         }
       });
