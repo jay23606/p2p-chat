@@ -1,68 +1,44 @@
-<!DOCTYPE html>
 <html>
-<head>
-    <title>WebRTC Hello World</title>
-</head>
-<body>
-    <h1>Hello World with WebRTC</h1>
-    <video id="localVideo" autoplay></video>
-    <video id="remoteVideo" autoplay></video>
-    <button id="startButton">Start</button>
-    <button id="stopButton">Stop</button>
+  <body>
+    <style>
+      #outgoing {
+        width: 600px;
+        word-wrap: break-word;
+        white-space: normal;
+      }
+    </style>
+    <form>
+      <textarea id="incoming"></textarea>
+      <button type="submit">submit</button>
+    </form>
+    <pre id="outgoing"></pre>
     <script src="simplepeer.min.js"></script>
     <script>
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
+      const p = new SimplePeer({
+        initiator: location.hash === '#1',
+        trickle: false
+      })
 
-        let peer = null;
+      p.on('error', err => console.log('error', err))
 
-        const constraints = {
-            audio: true,
-            video: true
-        };
+      p.on('signal', data => {
+        console.log('SIGNAL', JSON.stringify(data))
+        document.querySelector('#outgoing').textContent = JSON.stringify(data)
+      })
 
-        const peerConfig = {
-            initiator: location.hash === '#init',
-            trickle: false
-        };
+      document.querySelector('form').addEventListener('submit', ev => {
+        ev.preventDefault()
+        p.signal(JSON.parse(document.querySelector('#incoming').value))
+      })
 
-        navigator.mediaDevices.getUserMedia(constraints)
-            .then(stream => {
-                localVideo.srcObject = stream;
+      p.on('connect', () => {
+        console.log('CONNECT')
+        p.send('whatever' + Math.random())
+      })
 
-                peer = new SimplePeer(peerConfig);
-
-                peer.on('signal', data => {
-                    if (peerConfig.initiator) {
-                        location.hash = `#peer_signal=${JSON.stringify(data)}`
-                    }
-                });
-
-                peer.on('connect', () => {
-                    console.log('Connected!');
-                });
-
-                peer.on('stream', stream => {
-                    console.log('Got remote stream!');
-                    remoteVideo.srcObject = stream;
-                });
-
-                startButton.addEventListener('click', () => {
-                    peer.signal(JSON.parse(decodeURIComponent(location.hash.split('=')[1])));
-                });
-
-                stopButton.addEventListener('click', () => {
-                    peer.destroy();
-                });
-
-                peer.addStream(stream);
-            })
-            .catch(error => {
-                console.error('Error accessing media devices.', error);
-            });
-
+      p.on('data', data => {
+        console.log('data: ' + data)
+      })
     </script>
-</body>
+  </body>
 </html>
