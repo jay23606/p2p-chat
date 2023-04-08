@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Screen Sharing by ChatGPT</title>
+    <title>Screen Sharing App</title>
   </head>
   <body>
     <h1>Screen Sharing App</h1>
@@ -13,17 +13,32 @@
     <video id="localVideo" autoplay></video>
     <video id="remoteVideo" autoplay></video>
 
+    <button id="toggleStream">Toggle Screen</button>
+
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.3.2/dist/peerjs.min.js"></script>
     <script>
       const peer = new Peer();
-      let localStream;
+      let localScreen;
+      let localCamera;
       let peerConnection;
 
       navigator.mediaDevices
         .getDisplayMedia({ video: true, audio: true })
         .then((stream) => {
-          localStream = stream;
-          document.getElementById("localVideo").srcObject = localStream;
+          localScreen = stream;
+          document.getElementById("localVideo").srcObject = localScreen;
+
+          navigator.mediaDevices
+            .getUserMedia({ video: true, audio: true })
+            .then((stream) => {
+              localCamera = stream;
+            })
+            .catch((error) => {
+              console.log(error);
+            });
+        })
+        .catch((error) => {
+          console.log(error);
         });
 
       peer.on("open", (id) => {
@@ -35,17 +50,29 @@
         const peerId = urlParams.get('peer');
 
         if (peerId) {
-          peerConnection = peer.call(peerId, localStream);
+          peerConnection = peer.call(peerId, localScreen);
 
           peerConnection.on("stream", (stream) => {
             document.getElementById("remoteVideo").srcObject = stream;
           });
 
-          // Share local stream with peer
+          // Share local screen with peer
           const mediaConnection = peer.connect(peerId);
           mediaConnection.on("open", () => {
-            mediaConnection.send(localStream);
+            mediaConnection.send(localScreen);
           });
+        }
+      });
+
+      document.getElementById("toggleStream").addEventListener("click", () => {
+        if (peerConnection) {
+          if (peerConnection.peerConnection.getSenders()[0].track === localScreen.getTracks()[0]) {
+            peerConnection.peerConnection.getSenders()[0].replaceTrack(localCamera.getTracks()[1]);
+            document.getElementById("localVideo").srcObject = localCamera;
+          } else {
+            peerConnection.peerConnection.getSenders()[0].replaceTrack(localScreen.getTracks()[0]);
+            document.getElementById("localVideo").srcObject = localScreen;
+          }
         }
       });
     </script>
