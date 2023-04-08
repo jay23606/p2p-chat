@@ -7,8 +7,8 @@
     <title>P2P Chat</title>
     <style>
         input, body {
-            background:black; 
-            color:white; 
+            background: black;
+            color: white;
             font-family: "Comic Sans MS", "Comic Sans", cursive;
         }
         #message {
@@ -25,7 +25,7 @@
         <button id="copy-btn">Copy shareable URL for this chat</button>
     </div>
     <div id="stat">&nbsp;</div>
-    <hr/>
+    <hr />
     <fieldset style="border:1px solid white">
         <legend>Messages</legend>
         <div id="message"></div>
@@ -36,7 +36,7 @@
         let lastPeerId = null, conn = [], isServer = true, isOpen = false;
         $ = id => document.getElementById(id)
         const stat = $("stat"), message = $("message"), sendInput = $("send-input"), serverDiv = $('server-div')
-            nick = $("nick"), copyBtn = $("copy-btn"), params = new URLSearchParams(location.search);
+        nick = $("nick"), copyBtn = $("copy-btn"), params = new URLSearchParams(location.search);
 
         const addMessage = (msg) => message.innerHTML = message.innerHTML + "<br>" + msg
 
@@ -62,7 +62,7 @@
         peer.on('connection', c => {
             console.log('p.conn: ' + c.peer);
             conn.push(c);
-            stat.textContent = `Connected ${conn.length} client`;
+            stat.textContent = `Connected ${conn.length} client(s)`;
             c.on('open', () => stat.textContent = "Connected to: " + c.peer);
             c.on('data', (data) => {
                 addMessage(data)
@@ -106,7 +106,7 @@
             }
         }
 
-        const resizeChat = () => message.style.height = `${window.innerHeight - stat.getBoundingClientRect().bottom - 100}px`
+        const resizeChat = () => message.style.height = `${window.innerHeight - stat.getBoundingClientRect().bottom - 120}px`
         window.onresize = () => resizeChat();
 
         if (params.has('x')) { isServer = false; serverDiv.style.display = 'none'; }
