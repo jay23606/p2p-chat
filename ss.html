@@ -1,98 +1,44 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>screen sharing app</title>
+    <title>Screen Sharing Example</title>
   </head>
   <body>
-    <h1>Screen Sharing App</h1>
-    <p>Share this URL with your peer:</p>
-    <input type="text" id="peerUrl" readonly />
-
+    <h1>Screen Sharing Example</h1>
+    <p>Share this URL with the other peer:</p>
+    <p id="shareableUrl"></p>
     <video id="localVideo" autoplay></video>
     <video id="remoteVideo" autoplay></video>
+    <button id="shareScreen">Share Screen</button>
 
-    <button id="toggleStream">Toggle Screen</button>
-
-    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.3.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/0.3.2/peer.min.js"></script>
+    <!--<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>-->
     <script>
       const peer = new Peer();
-      let localScreen;
-      let localCamera;
-      let peerConnection;
-
-      navigator.mediaDevices
-        .getDisplayMedia({ video: true, audio: true })
-        .then((stream) => {
-          localScreen = stream;
-          document.getElementById("localVideo").srcObject = localScreen;
-
-          navigator.mediaDevices
-            .getUserMedia({ video: true, audio: true })
-            .then((stream) => {
-              localCamera = stream;
-            })
-            .catch((error) => {
-              console.log(error);
-            });
-        })
-        .catch((error) => {
-          console.log(error);
-        });
 
       peer.on("open", (id) => {
-        console.log("My peer ID is: " + id);
-        document.getElementById("peerUrl").value = window.location.href + '?peer=' + id;
-        
-        // Get peer ID from URL parameter
-        const urlParams = new URLSearchParams(window.location.search);
-        const peerId = urlParams.get('peer');
-
-        if (peerId) {
-          setTimeout(() => {
-            peerConnection = peer.call(peerId, localScreen);
-
-            if (!peerConnection) {
-              console.log('Failed to establish connection with peer ID:', peerId);
-              return;
-            }
-
-            peerConnection.on("stream", (stream) => {
-              document.getElementById("remoteVideo").srcObject = stream;
-            });
-
-            // Share local screen with peer
-            const mediaConnection = peer.connect(peerId);
-            mediaConnection.on("open", () => {
-              mediaConnection.send(localScreen);
-            });
-          }, 2000);
-        }
+        const shareableUrlElement = document.getElementById("shareableUrl");
+        shareableUrlElement.textContent = `${window.location.href}?peer=${id}`;
       });
 
-      document.getElementById("toggleStream").addEventListener("click", () => {
-        if (peerConnection) {
-          if (peerConnection.peerConnection && peerConnection.peerConnection.getSenders()[0]) {
-            if (peerConnection.peerConnection.getSenders()[0].track === localScreen.getTracks()[0]) {
-              peerConnection.peerConnection.getSenders()[0].replaceTrack(localCamera.getTracks()[1])
-                .then(() => {
-                  document.getElementById("localVideo").srcObject = localCamera;
-                })
-                .catch((error) => {
-                  console.log(error);
-                });
-            } else {
-              peerConnection.peerConnection.getSenders()[0].replaceTrack(localScreen.getTracks()[0])
-                .then(() => {
-                  document.getElementById("localVideo").srcObject = localScreen;
-                })
-                .catch((error) => {
-                  console.log(error);
-                });
-            }
-          }
-        }
+      document.getElementById("shareScreen").addEventListener("click", () => {
+        navigator.mediaDevices.getDisplayMedia({ video: true }).then((screenStream) => {
+          const call = peer.call(peer.id, screenStream);
+          call.on("stream", (remoteScreenStream) => {
+            const remoteVideo = document.getElementById("remoteVideo");
+            remoteVideo.srcObject = remoteScreenStream;
+          });
+        });
+      });
+
+      peer.on("call", (call) => {
+        navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+          call.answer(stream);
+          call.on("stream", (remoteScreenStream) => {
+            const remoteVideo = document.getElementById("remoteVideo");
+            remoteVideo.srcObject = remoteScreenStream;
+          });
+        });
       });
     </script>
   </body>
