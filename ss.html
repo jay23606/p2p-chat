@@ -1,84 +1,113 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="UTF-8">
-    <title>Screen Sharing Example..</title>
+    <title>Screen Sharing Example</title>
   </head>
   <body>
-    <div>
-      <label for="session-id">Session ID:</label>
-      <input type="text" id="session-id" placeholder="Enter session ID">
-      <button id="start-share">Start sharing</button>
-    </div>
-    <video id="localVideo" autoplay muted></video>
+    <h1>..Screen Sharing Example..</h1>
+    <p>Share your screen with someone by sending them the link below:</p>
+    <input type="text" id="link" readonly>
+    <button id="start">Start Sharing</button>
+    <hr>
+    <h2>Remote Screen</h2>
     <video id="remoteVideo" autoplay></video>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.3.2/peerjs.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script>
-      const sessionIdInput = document.getElementById('session-id');
-      const startShareButton = document.getElementById('start-share');
-      const localVideo = document.getElementById('localVideo');
-      const remoteVideo = document.getElementById('remoteVideo');
+      const DEFAULT_VIDEO_CONSTRAINTS = { video: true, audio: false };
+
+      // Variables
       let peer = null;
       let call = null;
+      let localStream = null;
 
-      // Initialize the Peer object
-      function init() {
+      // Get DOM elements
+      const linkInput = document.getElementById('link');
+      const startButton = document.getElementById('start');
+      const remoteVideo = document.getElementById('remoteVideo');
+
+      // Generate a random session ID
+      const sessionId = Math.random().toString(36).substr(2, 9);
+
+      // Create a new Peer object
+      peer = new Peer(sessionId);
+
+      // Listen for the Peer object to open
+      peer.on('open', function(peerId) {
+        console.log('Connected to PeerJS server with ID:', peerId);
+
+        // Set the link input value to the URL with the session ID
+        linkInput.value = location.href + '?session=' + sessionId;
+
+        // Listen for the Start Sharing button to be clicked
+        startButton.addEventListener('click', function() {
+          startSharing();
+        });
+      });
+
+      // Listen for the Peer object to receive a call
+      peer.on('call', function(incomingCall) {
+        console.log('Received call from peer:', incomingCall.peer);
+
+        // Answer the call with the local stream
+        incomingCall.answer(localStream);
+        call = incomingCall;
+
+        // Listen for the call to stream remote video
+        call.on('stream', function(remoteStream) {
+          console.log('Received remote stream');
+          remoteVideo.srcObject = remoteStream;
+        });
+      });
+
+      // Start sharing the screen
+      function startSharing() {
+        console.log('Starting screen sharing');
+
+        // Get the screen stream with the default video constraints
+        navigator.mediaDevices.getDisplayMedia(DEFAULT_VIDEO_CONSTRAINTS)
+          .then(function(stream) {
+            console.log('Screen sharing stream started');
+            localStream = stream;
+
+            // Call the first connected peer with the screen stream
+            const connectedPeers = Object.keys(peer.connections);
+            if (connectedPeers.length > 0) {
+              const firstPeerId = connectedPeers[0];
+              call = peer.call(firstPeerId, localStream);
+
+              // Listen for the call to stream remote video
+              call.on('stream', function(remoteStream) {
+                console.log('Received remote stream');
+                remoteVideo.srcObject = remoteStream;
+              });
+            }
+          })
+          .catch(function(err) {
+            console.error('Error starting screen sharing:', err);
+          });
+      }
+
+      // Get the session ID from the URL query parameters
+      function getSessionId() {
+        const params = new URLSearchParams(location.search);
+        return params.get('session');
+      }
+
+      // If a session ID is present in the URL, join the session
+      const sessionIdParam = getSessionId();
+      if (sessionIdParam) {
+        console.log('Joining session:', sessionIdParam);
+
+        // Connect to the session ID as a peer
         peer = new Peer();
-        peer.on('open', function(id) {
-          console.log('My peer ID is: ' + id);
+        call = peer.call(sessionIdParam);
+
+        // Listen for the call to stream remote video
+        call.on('stream', function(remoteStream) {
+          console.log('Received remote stream');
+          remoteVideo.srcObject = remoteStream;
         });
       }
-
-      // Start sharing your screen
-      async function startScreenShare(sessionId) {
-        try {
-          // Use getDisplayMedia() to capture your screen sharing stream
-          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-          
-          // Display your screen sharing stream in the local video element
-          localVideo.srcObject = stream;
-
-          // Call the peer with the specified session ID and pass in your screen sharing stream as the local stream
-          call = peer.call(sessionId, stream);
-
-          // Handle the stream event to display the peer's stream in the remote video element
-          call.on('stream', function(remoteStream) {
-            remoteVideo.srcObject = remoteStream;
-          });
-        } catch (err) {
-          console.error('Error starting screen share:', err);
-        }
-      }
-
-      // Get the session ID from the URL query parameter and connect to the peer
-      function connectToPeer(sessionId) {
-        peer = new Peer();
-        peer.on('open', function(id) {
-          console.log('Connected to peer with ID: ' + id);
-          call = peer.call(sessionId);
-          call.on('stream', function(remoteStream) {
-            remoteVideo.srcObject = remoteStream;
-          });
-        });
-      }
-
-      // Check if the current page is the sharing page or the viewing page
-      function checkPageType() {
-        const params = new URLSearchParams(window.location.search);
-        const sessionId = params.get('sessionId');
-        if (sessionId) {
-          connectToPeer(sessionId);
-        } else {
-          init();
-          startShareButton.addEventListener('click', function() {
-            const sessionId = sessionIdInput.value;
-            startScreenShare(sessionId);
-          });
-        }
-      }
-
-      checkPageType();
     </script>
   </body>
 </html>
