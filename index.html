@@ -89,8 +89,7 @@
             ta.select(); document.execCommand("copy");
             document.body.removeChild(ta);
         }
-
-        copyBtn.addEventListener('click', () => copyText(`${location.href}?x=${peer.id}`));
+        copyBtn.addEventListener('click', () => { copyText(`${location.href}${(Array.from(params.keys()).length ? '&' : '?')}x=${peer.id}`) });
 
         const clientConnect = () => {
             if (params.has('x')) {
