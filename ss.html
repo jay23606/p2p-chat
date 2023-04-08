@@ -1,46 +1,106 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
-    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), fullscreen=(self), payment=();">
     <title>Screen Sharing Example</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data:">
   </head>
   <body>
-    <h1>screenSharing Example</h1>
-    <p>Share this URL with the other peer:</p>
-    <p id="shareableUrl"></p>
-    <video id="localVideo" autoplay></video>
-    <video id="remoteVideo" autoplay></video>
-    <button id="shareScreen">Share Screen</button>
-
-    <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/0.3.2/peer.min.js"></script>-->
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <h1>Screen Sharing Example</h1>
+    <div>
+      <label>My ID:</label>
+      <input type="text" id="my-id">
+    </div>
+    <div>
+      <label>Peer ID:</label>
+      <input type="text" id="peer-id">
+    </div>
+    <div>
+      <button id="connect-btn">Connect</button>
+      <button id="share-screen-btn">Share Screen</button>
+      <button id="stop-share-btn">Stop Sharing</button>
+    </div>
+    <div>
+      <video id="local-video" autoplay muted></video>
+      <video id="remote-video" autoplay></video>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.3.2/dist/peerjs.min.js"></script>
     <script>
-      const peer = new Peer();
-
-      peer.on("open", (id) => {
-        const shareableUrlElement = document.getElementById("shareableUrl");
-        shareableUrlElement.textContent = `${window.location.href}?peer=${id}`;
+      // Initialize a new PeerJS object with a unique ID
+      var peer = new Peer(null, {
+        debug: 3
       });
 
-      document.getElementById("shareScreen").addEventListener("click", () => {
-        navigator.mediaDevices.getDisplayMedia({ video: true }).then((screenStream) => {
-          const call = peer.call(peer.id, screenStream);
-          call.on("stream", (remoteScreenStream) => {
-            const remoteVideo = document.getElementById("remoteVideo");
-            remoteVideo.srcObject = remoteScreenStream;
+      // Display the peer ID in the My ID field
+      document.getElementById('my-id').value = peer.id;
+
+      // Connect to a peer with the given ID
+      document.getElementById('connect-btn').addEventListener('click', function() {
+        var peerId = document.getElementById('peer-id').value.trim();
+        if (peerId) {
+          var conn = peer.connect(peerId);
+          conn.on('open', function() {
+            console.log('Connected to peer:', conn.peer);
           });
+          conn.on('data', function(data) {
+            console.log('Received data:', data);
+          });
+        }
+      });
+
+      // Share the screen with the connected peer
+      var localStream, screenStream, remoteStream;
+      var localVideo = document.getElementById('local-video');
+      var remoteVideo = document.getElementById('remote-video');
+      var shareScreenBtn = document.getElementById('share-screen-btn');
+      var stopShareBtn = document.getElementById('stop-share-btn');
+
+      shareScreenBtn.addEventListener('click', function() {
+        navigator.mediaDevices.getDisplayMedia().then(function(stream) {
+          localStream = stream;
+          localVideo.srcObject = localStream;
+          shareScreenBtn.disabled = true;
+          stopShareBtn.disabled = false;
+
+          // Replace the audio track with silence
+          var audioTrack = localStream.getAudioTracks()[0];
+          var silenceStream = new MediaStream();
+          silenceStream.addTrack(audioTrack.clone());
+          localStream = new MediaStream([silenceStream.getTracks()[0], stream.getVideoTracks()[0]]);
+
+          // Send the screen stream to the connected peer
+          var conn = peer.connect(document.getElementById('peer-id').value.trim());
+          conn.on('open', function() {
+            console.log('Connected to peer:', conn.peer);
+            screenStream = peer.call(conn.peer, localStream);
+            screenStream.on('stream', function(stream) {
+              console.log('Received screen stream:', stream);
+              remoteStream = stream;
+              remoteVideo.srcObject = remoteStream;
+            });
+            screenStream.on('close', function() {
+              console.log('Screen stream closed');
+            });
+          });
+        }).catch(function(error) {
+          console.error('Unable to share screen:', error);
         });
       });
 
-      peer.on("call", (call) => {
-        navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-          call.answer(stream);
-          call.on("stream", (remoteScreenStream) => {
-            const remoteVideo = document.getElementById("remoteVideo");
-            remoteVideo.srcObject = remoteScreenStream;
+      // Stop sharing the screen with the connected peer
+      stopShareBtn.addEventListener('click', function() {
+        if (screenStream) {
+          screenStream.close();
+          remoteStream.getTracks().forEach(function(track) {
+            track.stop();
           });
-        });
+          remoteVideo.srcObject = null;
+          screenStream = null;
+          remoteStream = null;
+          shareScreenBtn.disabled = false;
+          stopShareBtn.disabled = true;
+        }
       });
     </script>
   </body>
