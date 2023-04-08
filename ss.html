@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Screen Sharing App</title>
+  </head>
+  <body>
+    <h1>Screen Sharing App</h1>
+    <button onclick="startScreenShare()">Start Sharing</button>
+
+    <video id="localVideo" autoplay></video>
+    <video id="remoteVideo" autoplay></video>
+
+    <p>Share this URL with your peer:</p>
+    <input type="text" id="peerUrl" readonly />
+
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.3.2/dist/peerjs.min.js"></script>
+    <script>
+      const peer = new Peer();
+      let localStream;
+      let peerConnection;
+
+      navigator.mediaDevices
+        .getDisplayMedia({ video: true, audio: true })
+        .then((stream) => {
+          localStream = stream;
+          document.getElementById("localVideo").srcObject = localStream;
+        });
+
+      peer.on("open", (id) => {
+        console.log("My peer ID is: " + id);
+        document.getElementById("peerUrl").value = window.location.href + '?peer=' + id;
+      });
+
+      function startScreenShare() {
+        const peerId = prompt("Enter peer ID");
+
+        peerConnection = peer.call(peerId, localStream);
+
+        peerConnection.on("stream", (stream) => {
+          document.getElementById("remoteVideo").srcObject = stream;
+        });
+      }
+
+      // Get peer ID from URL parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const peerId = urlParams.get('peer');
+
+      if (peerId) {
+        peerConnection = peer.call(peerId, localStream);
+
+        peerConnection.on("stream", (stream) => {
+          document.getElementById("remoteVideo").srcObject = stream;
+        });
+      }
+    </script>
+  </body>
+</html>
