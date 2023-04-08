@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Screen Sharing App</title>
+    <title>Screen Sharing by ChatGPT</title>
   </head>
   <body>
     <h1>Screen Sharing App</h1>
@@ -39,6 +39,12 @@
 
           peerConnection.on("stream", (stream) => {
             document.getElementById("remoteVideo").srcObject = stream;
+          });
+
+          // Share local stream with peer
+          const mediaConnection = peer.connect(peerId);
+          mediaConnection.on("open", () => {
+            mediaConnection.send(localStream);
           });
         }
       });
