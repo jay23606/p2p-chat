@@ -4,7 +4,8 @@
     <title>Screen_Sharing Example</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data:">
+    <!--<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 
+'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data:">-->
   </head>
   <body>
     <h1>Screen Sharing Example</h1>
@@ -25,7 +26,7 @@
       <video id="local-video" autoplay muted></video>
       <video id="remote-video" autoplay></video>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.3.2/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script>
       // Initialize a new PeerJS object with a unique ID
       var peer = new Peer(null, {
