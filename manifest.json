@@ -18,8 +18,8 @@
     "background_color": "#000000",
     "display": "standalone",
     "orientation": "portrait",
-    "start_url": "/index.html?min=1",
+    "start_url": "/jay23606/p2p-chat/main/index.html",
     "scope": "/jay23606/p2p-chat/main/",
     "shape": "circle",
-    "version": "1.0.0"
+    "version": "1.1.0"
 }
