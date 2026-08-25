@@ -7,24 +7,27 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=League+Gothic&display=swap">
     <title>P2P Chat</title>
     <style>
-        input, body {
+        input, button, body {
             background: black;
             color: white;
             font-family: 'League Gothic', sans-serif;
             font-size: large;
         }
+        button { border: 1px solid #666; padding: 4px 10px; cursor: pointer; }
         #message {
             display: flex;
             flex-direction: column-reverse;
             height: 500px;
             overflow-y: auto;
         }
+        #code { letter-spacing: 3px; }
     </style>
 </head>
 <body>
     <span style="float:right">Nick:<input id="nick" /></span>
     <div id="server-div">
         <button id="copy-btn">Copy shareable URL for this chat</button>
+        <span id="code"></span>
     </div>
     <div id="stat">&nbsp;</div>
     <hr />
@@ -33,86 +36,94 @@
         <div id="message"></div>
     </fieldset>
     <input type="text" id="send-input" placeholder="Enter message and press enter" style="width:98.5%" />
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <script type="text/javascript">
-        let lastPeerId = null, conn = [], isServer = true, isOpen = false;
-        $ = id => document.getElementById(id)
-        const stat = $("stat"), message = $("message"), sendInput = $("send-input"), serverDiv = $('server-div')
-        nick = $("nick"), copyBtn = $("copy-btn"), params = new URLSearchParams(location.search);
 
-        const addMessage = (msg) => message.innerHTML = message.innerHTML + "<br>" + msg
+    <script type="module">
+    // Chat over foyer (https://github.com/jay23606/foyer).
+    //
+    // Was PeerJS, which meant depending on a third party's broker to introduce
+    // two browsers. Rooms and signalling now come from Supabase, and the chat
+    // itself still never touches a server: it is a WebRTC data channel.
+    //
+    // Mesh rather than star. The old version made whoever opened the link the
+    // hub and had them relay everyone else's messages, so that tab closing took
+    // the room with it. In a mesh everyone is connected to everyone, nobody
+    // relays, and there is no tab whose loss ends the conversation.
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+    import { createFoyer } from 'https://esm.sh/@jay23606/foyer@0.5.0'
 
-        sendInput.addEventListener('keypress', e => (e.which === 13) ? connSend(sendInput) : '');
+    const $ = id => document.getElementById(id)
+    const stat = $('stat'), message = $('message'), sendInput = $('send-input')
+    const serverDiv = $('server-div'), nick = $('nick'), copyBtn = $('copy-btn')
+    const params = new URLSearchParams(location.search)
 
-        const connSend = (input) => {
-            if (conn.length) {
-                let msg = `${nick.value || 'Anonymous'}: ` + input.value;
-                conn.forEach(c => c.send(msg));
-                addMessage(msg); input.value = '';
-            }
+    const addMessage = m => { message.innerHTML += '<br>' + m }
+    const say = s => { stat.textContent = s }
+
+    // The anon key is public by design; row-level security is what protects data.
+    const supabase = createClient('https://zbtgonklxweikgukzukg.supabase.co', 'sb_publishable_Tpkd3FzWhsfldMll-gIqfg_74YVroef')
+    const foyer = createFoyer({ supabase, prefix: 'p2pc_', url: 'https://zbtgonklxweikgukzukg.supabase.co', anonKey: 'sb_publishable_Tpkd3FzWhsfldMll-gIqfg_74YVroef' })
+
+    let net = null
+    const peers = new Map()
+
+    const send = input => {
+        if (!net || !peers.size || !input.value) return
+        const msg = `${nick.value || 'Anonymous'}: ${input.value}`
+        peers.forEach(p => p.send(msg))
+        addMessage(msg)
+        input.value = ''
+    }
+    sendInput.addEventListener('keypress', e => { if (e.which === 13) send(sendInput) })
+
+    const wire = room => {
+        net.on('peer', p => {
+            peers.set(p.id, p)
+            say(`Connected to ${peers.size} peer(s)`)
+        })
+        net.on('leave', id => {
+            peers.delete(id)
+            say(peers.size ? `Connected to ${peers.size} peer(s)` : 'Waiting for someone to join')
+        })
+        net.on('data', ({ data }) => addMessage(data))
+        net.on('error', e => say(`Error: ${e.message}`))
+    }
+
+    const start = async () => {
+        try {
+            say('Connecting...')
+            await foyer.signIn(nick.value || 'Anonymous')
+
+            const code = params.get('room')
+            const room = code ? await foyer.join(code) : await foyer.createRoom({ name: 'chat' })
+
+            if (code) serverDiv.style.display = 'none'
+            else $('code').textContent = room.code
+
+            // Reliable and ordered: chat is exactly the case the default suits.
+            net = await room.connect({ topology: 'mesh' })
+            wire(room)
+            say(peers.size ? `Connected to ${peers.size} peer(s)` : 'Waiting for someone to join')
+
+            copyBtn.addEventListener('click', () => {
+                const url = `${location.origin}${location.pathname}?room=${room.code}`
+                navigator.clipboard?.writeText(url).catch(() => {
+                    const ta = document.createElement('textarea')
+                    ta.value = url; document.body.appendChild(ta)
+                    ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+                })
+                say('Link copied')
+            })
+        } catch (e) {
+            say(`Error: ${e.message}`)
         }
+    }
 
-        let peer = new Peer(null, { debug: 2 });
-        peer.on('open', id => {
-            isOpen = true;
-            console.log('isOpen=' + isOpen);
-            if (peer.id === null) peer.id = lastPeerId;
-            else lastPeerId = peer.id;
-            console.log('ID: ' + peer.id);
-        });
-
-        peer.on('connection', c => {
-            console.log('p.conn: ' + c.peer);
-            conn.push(c);
-            stat.textContent = `Connected ${conn.length} client(s)`;
-            c.on('open', () => stat.textContent = "Connected to: " + c.peer);
-            c.on('data', (data) => {
-                addMessage(data)
-                //if we are the server then we need to broadcast the data to other nodes as well
-                if (isServer && conn.length > 1) conn.forEach(x => (x.peer !== c.peer) ? x.send(data) : '');
-            });
-            c.on('close', () => stat.innerHTML = `close event from ${c.peer}`);
-        });
-
-        peer.on('disconnected', () => {
-            stat.textContent = "Connection lost. Please reconnect";
-            peer.id = lastPeerId;
-            peer._lastServerId = lastPeerId;
-            peer.reconnect();
-        });
-
-        peer.on('close', () => stat.textContent = "Connection destroyed. Please refresh");
-
-        peer.on('error', (err) => stat.textContent = `Error: ${err} `);
-
-        const copyText = (txt) => {
-            let ta = document.createElement("textarea");
-            ta.value = txt; document.body.appendChild(ta);
-            ta.select(); document.execCommand("copy");
-            document.body.removeChild(ta);
-        }
-        copyBtn.addEventListener('click', () => { copyText(`${location.href}${(Array.from(params.keys()).length ? '&' : '?')}x=${peer.id}`) });
-
-        const clientConnect = () => {
-            if (params.has('x')) {
-                if (conn.length) conn.foreach(c => c.close());
-                setTimeout(() => {
-                    conn = [];
-                    conn.push(peer.connect(params.get('x'), { reliable: true }));
-                    conn[0].on('open', () => stat.textContent = "Connected to: " + conn[0].peer);
-                    conn[0].on('data', (data) => addMessage(data));
-                    conn[0].on('close', () => stat.textContent = "Connection closed");
-                    tries--;
-                }, 1000);
-            }
-        }
-
-        const resizeChat = () => message.style.height = `${window.innerHeight - stat.getBoundingClientRect().bottom - 120}px`
-        window.onresize = () => resizeChat();
-
-        if (params.has('x')) { isServer = false; serverDiv.style.display = 'none'; }
-        clientConnect();
-        resizeChat();
+    const resizeChat = () => {
+        message.style.height = `${window.innerHeight - stat.getBoundingClientRect().bottom - 120}px`
+    }
+    window.onresize = resizeChat
+    resizeChat()
+    start()
     </script>
 </body>
 </html>
