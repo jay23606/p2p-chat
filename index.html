@@ -21,6 +21,10 @@
             overflow-y: auto;
         }
         #code { letter-spacing: 3px; }
+        #cam-row { margin: 6px 0; }
+        #tiles { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+        #tiles video { width: 200px; background: #111; border: 1px solid #444; }
+        #cam-note { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -30,6 +34,8 @@
         <span id="code"></span>
     </div>
     <div id="stat">&nbsp;</div>
+    <div id="cam-row"><button id="cam-btn">Turn on camera</button> <span id="cam-note"></span></div>
+    <div id="tiles"></div>
     <hr />
     <fieldset style="border:1px solid white">
         <legend>Messages</legend>
@@ -49,7 +55,7 @@
     // the room with it. In a mesh everyone is connected to everyone, nobody
     // relays, and there is no tab whose loss ends the conversation.
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-    import { createFoyer } from 'https://esm.sh/@jay23606/foyer@0.5.0'
+    import { createFoyer } from 'https://esm.sh/@jay23606/foyer@0.6.0'
 
     const $ = id => document.getElementById(id)
     const stat = $('stat'), message = $('message'), sendInput = $('send-input')
@@ -88,6 +94,71 @@
         net.on('error', e => say(`Error: ${e.message}`))
     }
 
+    // Video rides its own mesh, separate from the chat's data channel, so a
+    // camera failure cannot take the conversation down with it.
+    let media = null
+    const tiles = new Map()
+
+    const tileFor = id => {
+        let v = tiles.get(id)
+        if (!v) {
+            v = document.createElement('video')
+            v.autoplay = true; v.playsInline = true
+            if (id === 'me') v.muted = true      // never play your own audio back
+            document.getElementById('tiles').appendChild(v)
+            tiles.set(id, v)
+        }
+        return v
+    }
+    const dropTile = id => { tiles.get(id)?.remove(); tiles.delete(id) }
+
+    const setupCamera = room => {
+        const btn = document.getElementById('cam-btn')
+        const note = document.getElementById('cam-note')
+        btn.addEventListener('click', async () => {
+            // Already running: the button just toggles the track.
+            if (media && media.currentStatus === 'live') {
+                const off = media.toggleCamera()
+                btn.textContent = off ? 'Turn on camera' : 'Turn off camera'
+                tileFor('me').style.opacity = off ? '0.3' : '1'
+                return
+            }
+            btn.disabled = true
+            note.textContent = 'asking for the camera...'
+            // Open the camera here rather than inside the mesh, so the local
+            // preview has the stream to show. foyer takes a stream you already
+            // hold and uses it as given instead of opening a second capture.
+            let local
+            try {
+                local = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+            } catch (err) {
+                btn.disabled = false
+                note.textContent = err.name === 'NotAllowedError'
+                    ? 'the browser blocked camera access'
+                    : 'no camera available'
+                return
+            }
+            tileFor('me').srcObject = local
+
+            media = room.media()
+            media.onStream((peerId, stream) => { tileFor(peerId).srcObject = stream })
+            media.onLeave(peerId => dropTile(peerId))
+            const status = await media.start(local)
+            btn.disabled = false
+            if (status !== 'live') {
+                note.textContent = 'could not start: ' + status
+                local.getTracks().forEach(t => t.stop())
+                dropTile('me')
+                media = null
+                return
+            }
+            note.textContent = ''
+            btn.textContent = 'Turn off camera'
+            // The mesh starts muted; this is a call, so open the mic.
+            media.setMuted(false)
+        })
+    }
+
     const start = async () => {
         try {
             say('Connecting...')
@@ -102,6 +173,7 @@
             // Reliable and ordered: chat is exactly the case the default suits.
             net = await room.connect({ topology: 'mesh' })
             wire(room)
+            setupCamera(room)
             say(peers.size ? `Connected to ${peers.size} peer(s)` : 'Waiting for someone to join')
 
             copyBtn.addEventListener('click', () => {
